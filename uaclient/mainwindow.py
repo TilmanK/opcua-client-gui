@@ -426,16 +426,38 @@ class Window(QMainWindow):
         dia.show()
 
 
-def main():
+def setup_logging(file_name: str, level: int = logging.ERROR) -> None:
+    """Configure logging."""
+    fmt_str = "%(asctime)s [%(threadName)-10.10s] [%(levelname)-5.5s] " \
+        "[%(filename)25.25s:%(funcName)-25.25s] %(message)s"
+    log_formatter = logging.Formatter(fmt_str)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+
+    log_path = "logfiles"
+    try:
+        os.makedirs(log_path)
+    except FileExistsError:
+        pass
+
+    file_handler = logging.FileHandler(os.path.join(log_path, file_name))
+    file_handler.setFormatter(log_formatter)
+    root_logger.addHandler(file_handler)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_formatter)
+    root_logger.addHandler(console_handler)
+
+    logging.info("Free OpcUAClient - logging initialized")
+    logging.debug("Set logging to %s", level)
+
+
+def main() -> None:
     sys.excepthook = excepthook
+    setup_logging("logfile.log", logging.DEBUG)
     app = QApplication(sys.argv)
     client = Window()
-    handler = QtHandler(client.ui.logTextEdit)
-    logging.getLogger().addHandler(handler)
-    logging.getLogger("uaclient").setLevel(logging.INFO)
-    logging.getLogger("uawidgets").setLevel(logging.INFO)
-    #logging.getLogger("opcua").setLevel(logging.INFO)  # to enable logging of ua client library
-   
+
     client.show()
     sys.exit(app.exec_())
 
