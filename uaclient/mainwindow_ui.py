@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'uaclient/mainwindow_ui.ui'
+# Form implementation generated from reading ui file 'uaclient\mainwindow_ui.ui'
 #
-# Created by: PyQt5 UI code generator 5.10.1
+# Created by: PyQt5 UI code generator 5.13.1
 #
 # WARNING! All changes made in this file will be lost!
 
+
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -329,4 +331,3 @@ class Ui_MainWindow(object):
         self.actionRemoveFromGraph.setShortcut(_translate("MainWindow", "Ctrl+Shift+G"))
         self.actionCall.setText(_translate("MainWindow", "Call"))
         self.actionCall.setToolTip(_translate("MainWindow", "Call Ua Method"))
-
