@@ -318,7 +318,7 @@ class Window(QMainWindow):
         self.ui.statusBar.show()
         self.ui.statusBar.setStyleSheet("QStatusBar { background-color : red; color : black; }")
         self.ui.statusBar.showMessage(str(msg))
-        QTimer.singleShot(1500, self.ui.statusBar.hide)
+        QTimer.singleShot(8000, self.ui.statusBar.hide)
 
     def get_current_node(self, idx=None):
         return self.tree_ui.get_current_node(idx)
