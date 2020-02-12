@@ -6,10 +6,9 @@ import logging
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtWidgets import QLabel
 
-from opcua import ua
-from opcua import Node
+from asyncua.sync import ua
+from asyncua.sync import Node
 
-from uawidgets.utils import trycatchslot
 
 use_graph = True
 try:
@@ -85,7 +84,6 @@ class GraphUI(object):
         self.timer.timeout.connect(self.pushtoGraph)
         self.timer.start()
 
-    @trycatchslot
     def _add_node_to_channel(self ,node=None):
         if not isinstance(node, Node):
             node = self.window.get_current_node()
@@ -114,7 +112,6 @@ class GraphUI(object):
                 logger.info("Variable cannot be added to graph because it is of type %s or an array", dtypeStr)
 
 
-    @trycatchslot
     def _remove_node_from_channel(self ,node=None):
         if not isinstance(node, Node):
             node = self.window.get_current_node()

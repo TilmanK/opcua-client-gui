@@ -2,11 +2,11 @@ import logging
 
 from PyQt5.QtCore import QSettings
 
-from opcua import ua
-from opcua import Client
-from opcua import Node
-from opcua import crypto
-from opcua.tools import endpoint_to_strings
+from asyncua.sync import ua
+from asyncua.sync import Client
+from asyncua.sync import Node
+from asyncua import crypto
+from asyncua.tools import endpoint_to_strings
 
 
 logger = logging.getLogger(__name__)

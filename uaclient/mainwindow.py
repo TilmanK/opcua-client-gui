@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import sys
+import traceback
 
 from datetime import datetime
 import inspect
@@ -9,10 +10,11 @@ import logging
 
 from PyQt5.QtCore import pyqtSignal, QTimer, Qt, QObject, QSettings, QItemSelection, QMimeData, QCoreApplication
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
-from PyQt5.QtWidgets import QMainWindow, QWidget, QApplication, QAbstractItemView, QMenu, QAction
+from PyQt5.QtWidgets import QMainWindow, QWidget, QApplication, \
+    QAbstractItemView, QMenu, QAction, QMessageBox
 
-from opcua import ua
-from opcua import Node
+from asyncua.sync import ua
+from asyncua.sync import Node
 
 from uaclient.uaclient import UaClient
 from uaclient.mainwindow_ui import Ui_MainWindow
@@ -23,7 +25,6 @@ from uawidgets import resources
 from uawidgets.attrs_widget import AttrsWidget
 from uawidgets.tree_widget import TreeWidget
 from uawidgets.refs_widget import RefsWidget
-from uawidgets.utils import trycatchslot
 from uawidgets.logger import QtHandler
 from uawidgets.call_method_dialog import CallMethodDialog
 
@@ -87,7 +88,6 @@ class EventUI(object):
         self._subscribed_nodes = []
         self.model.clear()
 
-    @trycatchslot
     def _subscribe(self, node=None):
         logger.info("Subscribing to %s", node)
         if not node:
@@ -107,7 +107,6 @@ class EventUI(object):
         else:
             self._subscribed_nodes.append(node)
 
-    @trycatchslot
     def _unsubscribe(self):
         node = self.window.get_current_node()
         if node is None:
@@ -115,7 +114,6 @@ class EventUI(object):
         self._subscribed_nodes.remove(node)
         self.uaclient.unsubscribe_events(node)
 
-    @trycatchslot
     def _update_event_model(self, event):
         self.model.appendRow([QStandardItem(str(event))])
 
@@ -160,7 +158,6 @@ class DataChangeUI(object):
     def show_error(self, *args):
         self.window.show_error(*args)
 
-    @trycatchslot
     def _subscribe(self, node=None):
         if not isinstance(node, Node):
             node = self.window.get_current_node()
@@ -184,7 +181,6 @@ class DataChangeUI(object):
             self.model.takeRow(idx.row())
             raise
 
-    @trycatchslot
     def _unsubscribe(self):
         node = self.window.get_current_node()
         if node is None:
@@ -299,7 +295,6 @@ class Window(QMainWindow):
             self.uaclient.certificate_path = dia.certificate_path
             self.uaclient.private_key_path = dia.private_key_path
 
-    @trycatchslot
     def show_refs(self, selection):
         if isinstance(selection, QItemSelection):
             if not selection.indexes(): # no selection
@@ -309,7 +304,6 @@ class Window(QMainWindow):
         if node:
             self.refs_ui.show_refs(node)
     
-    @trycatchslot
     def show_attrs(self, selection):
         if isinstance(selection, QItemSelection):
             if not selection.indexes(): # no selection
@@ -332,7 +326,6 @@ class Window(QMainWindow):
     def get_uaclient(self):
         return self.uaclient
 
-    @trycatchslot
     def connect(self):
         uri = self.ui.addrComboBox.currentText()
         try:
@@ -342,9 +335,10 @@ class Window(QMainWindow):
             raise
 
         self._update_address_list(uri)
-        self.tree_ui.set_root_node(self.uaclient.client.get_root_node())
+        self.tree_ui.set_root_node(self.uaclient.client.nodes.root)
         self.ui.treeView.setFocus()
-        self.load_current_node()
+        # Todo: This doesn't work yet
+        # self.load_current_node()
 
     def _update_address_list(self, uri):
         if uri == self._address_list[0]:
@@ -414,7 +408,6 @@ class Window(QMainWindow):
     def addAction(self, action):
         self._contextMenu.addAction(action)
 
-    @trycatchslot
     def _update_actions_state(self, current, previous):
         node = self.get_current_node(current)
         self.ui.actionCall.setEnabled(False)
@@ -434,6 +427,7 @@ class Window(QMainWindow):
 
 
 def main():
+    sys.excepthook = excepthook
     app = QApplication(sys.argv)
     client = Window()
     handler = QtHandler(client.ui.logTextEdit)
@@ -445,6 +439,29 @@ def main():
     client.show()
     sys.exit(app.exec_())
 
+
+def excepthook(cls: Exception, exception: str, trace: traceback) -> None:
+    """
+    Override the system except hook to catch PyQt exceptions.
+
+    :param cls:class of the exception
+    :param exception: exception string
+    :param trace: traceback of the exception
+    :return: None
+    """
+    logging.critical("Critical error occurred:")
+    traceback_text = ""
+    for line in traceback.format_tb(trace):
+        for line_splitted in line.split("\n"):
+            if line_splitted:
+                traceback_text = traceback_text + line_splitted + "\n"
+                logging.critical(line_splitted)
+    logging.critical('%s: %s', cls, exception)
+    try:
+        QMessageBox.critical(None, "Ein Fehler ist aufgetreten",
+                             f"{cls}: {exception}\n {traceback_text}")
+    except TypeError:
+        pass
 
 if __name__ == "__main__":
     main()

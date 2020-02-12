@@ -7,8 +7,8 @@ sys.path.insert(0, "opcua-widgets")
 import os
 print("PWD", os.getcwd())
 
-from opcua import ua
-from opcua import Server
+from asyncua.sync import ua
+from asyncua.sync import Server
 
 from PyQt5.QtCore import QTimer, QSettings, QModelIndex, Qt, QCoreApplication
 from PyQt5.QtWidgets import QApplication

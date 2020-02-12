@@ -1,7 +1,6 @@
 from PyQt5.QtWidgets import QDialog, QFileDialog
 
 from uaclient.connection_ui import Ui_ConnectionDialog
-from uawidgets.utils import trycatchslot
 
 
 class ConnectionDialog(QDialog):
@@ -27,7 +26,6 @@ class ConnectionDialog(QDialog):
         self.ui.privateKeyButton.clicked.connect(self.get_private_key)
         self.ui.queryButton.clicked.connect(self.query)
 
-    @trycatchslot
     def query(self):
         self.ui.modeComboBox.clear()
         self.ui.policyComboBox.clear()
