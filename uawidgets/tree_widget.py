@@ -174,7 +174,8 @@ class TreeViewModel(QStandardItemModel):
         assert not self._fetched
         self._root_node = node
         description = self._get_node_desc(node)
-        self.add_item_by_node(description, node=node)
+        item = self._create_items(description, node)
+        self.appendRow(item)
 
     @staticmethod
     def _get_node_desc(node: Node) -> ReferenceDescription:
@@ -194,11 +195,6 @@ class TreeViewModel(QStandardItemModel):
         node = parent_node.get_child(desc.BrowseName.to_string())
         item = self._create_items(desc, node)
         parent.appendRow(item)
-
-    def add_item_by_node(self, desc: ReferenceDescription, node: Node) -> None:
-        """Add an item to the model."""
-        item = self._create_items(desc, node)
-        self.appendRow(item)
 
     def _create_items(self, desc: ReferenceDescription, node: Node)\
             -> List[QStandardItem]:
