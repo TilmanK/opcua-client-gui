@@ -241,7 +241,7 @@ class Window(QMainWindow):
         # init widgets
         self.ui.addrComboBox.addItems(self._address_list)
 
-        self.ua_client: UaClient = UaClient()
+        self.uaclient: UaClient = UaClient()
 
         self.tree_ui: TreeWidget = TreeWidget(self.ui.treeView)
         self.tree_ui.error.connect(self.show_error)
@@ -253,9 +253,9 @@ class Window(QMainWindow):
         self._refs_ui.error.connect(self.show_error)
         self._attrs_ui = AttrsWidget(self.ui.attrView)
         self._attrs_ui.error.connect(self.show_error)
-        self._datachange_ui = DataChangeUI(self, self.ua_client)
-        self._event_ui = EventUI(self, self.ua_client)
-        self._graph_ui = GraphUI(self, self.ua_client)
+        self._datachange_ui = DataChangeUI(self, self.uaclient)
+        self._event_ui = EventUI(self, self.uaclient)
+        self._graph_ui = GraphUI(self, self.uaclient)
 
         self.ui.addrComboBox.currentTextChanged.connect(self._uri_changed)
         # force update for current value at startup
@@ -295,21 +295,21 @@ class Window(QMainWindow):
 
     @pyqtSlot(str, name="_uri_changed")
     def _uri_changed(self, uri: str) -> None:
-        self.ua_client.load_security_settings(uri)
+        self.uaclient.load_security_settings(uri)
 
     @pyqtSlot(name="show_connection_dialog")
     def show_connection_dialog(self) -> None:
         """Show the connection dialog and set the results if confirmed."""
         dia = ConnectionDialog(self, self.ui.addrComboBox.currentText())
-        dia.security_mode = self.ua_client.security_mode
-        dia.security_policy = self.ua_client.security_policy
-        dia.certificate_path = self.ua_client.certificate_path
-        dia.private_key_path = self.ua_client.private_key_path
+        dia.security_mode = self.uaclient.security_mode
+        dia.security_policy = self.uaclient.security_policy
+        dia.certificate_path = self.uaclient.certificate_path
+        dia.private_key_path = self.uaclient.private_key_path
         if dia.exec_():
-            self.ua_client.security_mode = dia.security_mode
-            self.ua_client.security_policy = dia.security_policy
-            self.ua_client.certificate_path = dia.certificate_path
-            self.ua_client.private_key_path = dia.private_key_path
+            self.uaclient.security_mode = dia.security_mode
+            self.uaclient.security_policy = dia.security_policy
+            self.uaclient.certificate_path = dia.certificate_path
+            self.uaclient.private_key_path = dia.private_key_path
 
     @pyqtSlot(QItemSelection, QItemSelection, name="show_refs")
     def show_refs(self, selection: QItemSelection, _: QItemSelection) -> None:
@@ -352,12 +352,12 @@ class Window(QMainWindow):
         """Connect to the server uri entered in the addrComboBox."""
         uri = self.ui.addrComboBox.currentText()
         try:
-            self.ua_client.connect(uri)
+            self.uaclient.connect(uri)
         except Exception as ex:
             self.show_error(ex)
 
         self._update_address_list(uri)
-        self.tree_ui.set_root_node(self.ua_client.client.nodes.root)
+        self.tree_ui.set_root_node(self.uaclient.client.nodes.root)
         self.ui.treeView.setFocus()
         # Todo: This doesn't work yet
         # self.load_current_node()
@@ -375,7 +375,7 @@ class Window(QMainWindow):
     def disconnect(self) -> None:
         """Disconnect from the server currently connected to."""
         try:
-            self.ua_client.disconnect()
+            self.uaclient.disconnect()
         except Exception as ex:
             self.show_error(ex)
             raise
@@ -418,7 +418,7 @@ class Window(QMainWindow):
         uri = self.ui.addrComboBox.currentText()
         if uri in mysettings:
             nodeid = ua.NodeId.from_string(mysettings[uri])
-            node = self.ua_client.client.get_node(nodeid)
+            node = self.uaclient.client.get_node(nodeid)
             self.tree_ui.expand_to_node(node)
 
     def setup_context_menu_tree(self) -> None:
@@ -456,7 +456,7 @@ class Window(QMainWindow):
     def call_method(self) -> None:
         """Show the CallMethodDialog."""
         node = self.get_current_node()
-        dia = CallMethodDialog(self, self.ua_client.client, node)
+        dia = CallMethodDialog(self, self.uaclient.client, node)
         dia.show()
 
 
