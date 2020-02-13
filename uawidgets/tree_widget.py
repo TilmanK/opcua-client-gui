@@ -161,15 +161,18 @@ class TreeViewModel(QStandardItemModel):
         """Create a new TreeViewModel."""
         super(TreeViewModel, self).__init__()
         self._fetched: List[Node] = []
+        self._root_node: Optional[Node] = None
 
     def clear(self) -> None:
         """Remove all items and reset the header."""
         self.removeRows(0, self.rowCount())
         self._fetched = []
+        self._root_node = None
 
     def set_root_node(self, node: Node) -> None:
         """Set the root node for the model."""
         assert not self._fetched
+        self._root_node = node
         description = self._get_node_desc(node)
         self.add_item_by_node(description, node=node)
 
@@ -258,7 +261,7 @@ class TreeViewModel(QStandardItemModel):
         """Return if the given index has children."""
         if not idx.isValid():
             # if the index isn't valid, it's the root of the TreeView
-            return True
+            return bool(self._root_node)
         node = self.itemFromIndex(idx).data(Qt.UserRole)
         # Todo: Refactor to not cause a request every time method is called
         return bool(node.get_children_descriptions())
