@@ -161,17 +161,18 @@ class TreeViewModel(QStandardItemModel):
         """Create a new TreeViewModel."""
         super(TreeViewModel, self).__init__()
         self._fetched: List[Node] = []
+        self._descr_cache: Dict[Node, ReferenceDescription] = {}
         self._root_node: Optional[Node] = None
 
     def clear(self) -> None:
         """Remove all items and reset the header."""
         self.removeRows(0, self.rowCount())
         self._fetched = []
+        self._descr_cache = {}
         self._root_node = None
 
     def set_root_node(self, node: Node) -> None:
         """Set the root node for the model."""
-        assert not self._fetched
         self._root_node = node
         description = self._get_node_desc(node)
         item = self._create_items(description, node)
@@ -258,8 +259,12 @@ class TreeViewModel(QStandardItemModel):
             # if the index isn't valid, it's the root of the TreeView
             return bool(self._root_node)
         node = self.itemFromIndex(idx).data(Qt.UserRole)
-        # Todo: Refactor to not cause a request every time method is called
-        return bool(node.get_children_descriptions())
+        try:
+            return bool(self._descr_cache[node])
+        except KeyError:
+            descriptions = node.get_children_descriptions()
+            self._descr_cache[node] = descriptions
+            return bool(descriptions)
 
     def fetchMore(self, idx: QModelIndex) -> None:
         """Fetch and publish the children for the given index."""
@@ -268,6 +273,7 @@ class TreeViewModel(QStandardItemModel):
         self._fetched.append(node)
         descriptions = node.get_children_descriptions()
         descriptions.sort(key=lambda x: x.BrowseName)
+        self._descr_cache[node] = descriptions
         for desc in descriptions:
             self.add_item_with_parent(desc, parent)
 
