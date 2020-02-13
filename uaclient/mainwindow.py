@@ -244,7 +244,6 @@ class Window(QMainWindow):
         self.uaclient: UaClient = UaClient()
 
         self.tree_ui: TreeWidget = TreeWidget(self.ui.treeView)
-        self.tree_ui.error.connect(self.show_error)
         self.setup_context_menu_tree()
         self.ui.treeView.selectionModel().currentChanged.connect(
             self.update_actions_state)

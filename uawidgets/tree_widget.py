@@ -1,154 +1,94 @@
+"""TreeWidget and TreeView definitions."""
 import logging
 from typing import Optional, List, Iterable, Dict
 
-from PyQt5.QtCore import pyqtSignal, QMimeData, QObject, Qt, QSettings, \
-    QModelIndex
+from PyQt5.QtCore import QMimeData, QObject, Qt, QSettings, QModelIndex
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
-from PyQt5.QtWidgets import QApplication, QAbstractItemView, QAction
+from PyQt5.QtWidgets import QApplication, QTreeView, QHeaderView
 
 from asyncua.ua import ReferenceDescription, ObjectIds, TwoByteNodeId, \
     NodeClass
 from asyncua.sync import Node
-from asyncua.ua import UaError
 
 
 class TreeWidget(QObject):
+    """TreeWidget controlling TreeViewModel and TreeView."""
 
-    error = pyqtSignal(Exception)
     HEADER_LABELS = ['DisplayName', "BrowseName", 'NodeId']
 
-    def __init__(self, view):
+    def __init__(self, view: QTreeView) -> None:
+        """Create a new TreeWidget."""
         QObject.__init__(self, view)
-        self.view = view
-        self.model = TreeViewModel()
-        self.model.clear()
-        self.view.setModel(self.model)
+        self._view = view
+        self._model = TreeViewModel()
+        self._view.setModel(self._model)
 
-        #self.view.setUniformRowHeights(True)
-        self.model.setHorizontalHeaderLabels(TreeWidget.HEADER_LABELS)
-        self.view.header().setSectionResizeMode(0)
-        self.view.header().setStretchLastSection(True)
-        self.view.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.settings = QSettings()
-        state = self.settings.value("tree_widget_state", None)
-        if state is not None:
-            self.view.header().restoreState(state)
+        self._model.setHorizontalHeaderLabels(TreeWidget.HEADER_LABELS)
+        self._view.header().setSectionResizeMode(QHeaderView.Interactive)
+        self._load_state()
 
-        # Todo: I can't see where this is used, should be removed?
-        self.actionReload = QAction("Reload", self)
-        self.actionReload.triggered.connect(self.reload_current)
+    def _load_state(self) -> None:
+        """Load the header state from the settings and set it."""
+        try:
+            self._view.header().restoreState(
+                QSettings().value("tree_widget_state", None))
+        except TypeError:
+            logging.info("Could not restore state from QSettings.")
 
-    def save_state(self):
-        self.settings.setValue("tree_widget_state", self.view.header().saveState())
+    def save_state(self) -> None:
+        """Save the header state to the settings."""
+        QSettings().setValue("tree_widget_state",
+                             self._view.header().saveState())
 
-    def clear(self):
-        self.model.clear()
+    def clear(self) -> None:
+        """Clear the model."""
+        self._model.clear()
 
-    def set_root_node(self, node):
-        self.model.clear()
-        self.model.set_root_node(node)
-        self.view.expandToDepth(0)
+    def set_root_node(self, node: Node) -> None:
+        """Set the root node initializing the model."""
+        self._model.clear()
+        self._model.set_root_node(node)
+        self._view.expandToDepth(0)
 
-    def copy_path(self):
+    def copy_path(self) -> None:
+        """Copy the current path to the Clipboard."""
         path = self.get_current_path()
         path_str = ",".join(path)
         QApplication.clipboard().setText(path_str)
 
-    def expand_current_node(self, expand=True):
-        idx = self.view.currentIndex()
-        self.view.setExpanded(idx, expand)
+    def expand_to_node(self, node: Node) -> None:
+        """Expand tree until given node and select it."""
+        index = self._model.match(self._model.index(0, 0), Qt.UserRole,
+                                  node, 1, Qt.MatchExactly)[0]
+        self._view.setExpanded(index, True)
+        self._view.setCurrentIndex(index)
+        self._view.activated.emit(index)
 
-    def expand_to_node(self, node):
-        """
-        Expand tree until given node and select it
-        """
-        if isinstance(node, str):
-            idxlist = self.model.match(self.model.index(0, 0), Qt.DisplayRole, node, 1, Qt.MatchExactly|Qt.MatchRecursive)
-            if not idxlist:
-                raise ValueError(f"Node {node} not found in tree")
-            node = self.model.data(idxlist[0], Qt.UserRole)
-        path = node.get_path()
-        for node in path:
-            # FIXME: this would be the correct way if it would work
-            #idxlist = self.model.match(self.model.index(0, 0), Qt.UserRole, node.node, 2, Qt.MatchExactly|Qt.MatchRecursive)
-            try:
-                text = node.get_display_name().Text
-            except UaError as ex:
-                return
-            idxlist = self.model.match(self.model.index(0, 0), Qt.DisplayRole, text, 1, Qt.MatchExactly|Qt.MatchRecursive)
-            if idxlist:
-                idx = idxlist[0]
-                self.view.setExpanded(idx, True)
-                self.view.setCurrentIndex(idx)
-                self.view.activated.emit(idx)
-            else:
-                print(f"While expanding tree, Could not find node {node} in tree view, this might be OK")
-
-    def copy_nodeid(self):
+    def copy_nodeid(self) -> None:
+        """Copy the node id of the current node."""
         node = self.get_current_node()
-        text = node.nodeid.to_string()
-        QApplication.clipboard().setText(text)
+        # the method should never be called if there is no current node
+        assert node
+        QApplication.clipboard().setText(node.nodeid.to_string())
 
-    def get_current_path(self):
-        idx = self.view.currentIndex()
+    def get_current_path(self) -> List[str]:
+        """Get the path of the current index."""
+        idx = self._view.currentIndex()
         idx = idx.sibling(idx.row(), 0)
-        it = self.model.itemFromIndex(idx)
-        path = []
-        while it and it.data(Qt.UserRole):
-            node = it.data(Qt.UserRole)
+        item = self._model.itemFromIndex(idx)
+        path: List[str] = []
+        while item and item.data(Qt.UserRole):
+            node = item.data(Qt.UserRole)
             name = node.get_browse_name().to_string()
             path.insert(0, name)
-            it = it.parent()
+            item = item.parent()
         return path
 
-    def update_browse_name_current_item(self, bname):
-        idx = self.view.currentIndex()
-        idx = idx.sibling(idx.row(), 1)
-        it = self.model.itemFromIndex(idx)
-        it.setText(bname.to_string())
-
-    def update_display_name_current_item(self, dname):
-        idx = self.view.currentIndex()
-        idx = idx.sibling(idx.row(), 0)
-        it = self.model.itemFromIndex(idx)
-        it.setText(dname.Text)
-
-    def reload_current(self):
-        idx = self.view.currentIndex()
-        idx = idx.sibling(idx.row(), 0)
-        it = self.model.itemFromIndex(idx)
-        if not it:
-            return None
-        self.reload(it)
-
-    def reload(self, item=None):
-        if item is None:
-            item = self.model.item(0, 0)
-            node = item.data(Qt.UserRole)
-        for _ in range(item.rowCount()):
-            child_it = item.child(0, 0)
-            node = child_it.data(Qt.UserRole)
-            if node:
-                self.model.reset_cache(node)
-            item.takeRow(0)
-        node = item.data(Qt.UserRole)
-        if node:
-            self.model.reset_cache(node)
-            idx = self.model.indexFromItem(item)
-            #if self.view.isExpanded(idx):
-            #self.view.setExpanded(idx, True)
-
-    def remove_current_item(self) -> None:
-        """Removes the current item from the model."""
-        idx = self.view.currentIndex()
-        self.model.removeRow(idx.row(), idx.parent())
-
-    def get_current_node(self) -> Optional[Node]:
-        idx = self.view.currentIndex()
-        msg = 'Current Index: row: %s, col: %s, parent: %s, parent_valid: %s'
-        logging.debug(msg, idx.row(), idx.column(), idx.parent(),
-                      idx.isValid())
-        node = self.model.itemFromIndex(idx).data(Qt.UserRole)
+    def get_current_node(self) -> Node:
+        """Get the currently selected node."""
+        index = self._view.currentIndex()
+        index = index.sibling(index.row(), 0)
+        node = self._model.itemFromIndex(index).data(Qt.UserRole)
         logging.debug("Got node for Index: %s", node)
         return node
 
@@ -166,6 +106,7 @@ class TreeViewModel(QStandardItemModel):
 
     def clear(self) -> None:
         """Remove all items and reset the header."""
+        logging.debug("Clearing Model")
         self.removeRows(0, self.rowCount())
         self._fetched = []
         self._descr_cache.clear()
@@ -245,7 +186,7 @@ class TreeViewModel(QStandardItemModel):
         except ValueError:
             pass
 
-    def canFetchMore(self, parent: QModelIndex) -> bool:
+    def canFetchMore(self, parent: QModelIndex) -> bool:  # nopep8
         """Return if more items can be fetched for the given parent."""
         if not parent.isValid():
             return False
@@ -254,7 +195,7 @@ class TreeViewModel(QStandardItemModel):
             return True
         return False
 
-    def hasChildren(self, idx: QModelIndex = QModelIndex()) -> bool:
+    def hasChildren(self, idx: QModelIndex = QModelIndex()) -> bool:  # nopep8
         """Return if the given index has children."""
         if not idx.isValid():
             # if the index isn't valid, it's the root of the TreeView
@@ -267,7 +208,7 @@ class TreeViewModel(QStandardItemModel):
             self._descr_cache[node] = descriptions
             return bool(descriptions)
 
-    def fetchMore(self, idx: QModelIndex) -> None:
+    def fetchMore(self, idx: QModelIndex) -> None:  # nopep8
         """Fetch and publish the children for the given index."""
         parent = self.itemFromIndex(idx)
         node = parent.data(Qt.UserRole)
@@ -278,7 +219,7 @@ class TreeViewModel(QStandardItemModel):
         for desc in descriptions:
             self._add_item_with_parent(desc, parent)
 
-    def mimeData(self, indexes: Iterable[QModelIndex]) -> QMimeData:
+    def mimeData(self, indexes: Iterable[QModelIndex]) -> QMimeData:  # nopep8
         """Return a QMimeData object for the given indexes."""
         items = [self.itemFromIndex(idx) for idx in indexes]
         nodes = [item.data(Qt.UserRole) for item in items]
