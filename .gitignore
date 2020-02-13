@@ -17,4 +17,4 @@ old
 dist
 *.egg-info
 *.swp
-
+logfiles
