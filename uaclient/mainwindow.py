@@ -3,11 +3,10 @@ import os
 import sys
 import traceback
 
-from datetime import datetime
 import logging
 from typing import List, Optional
 
-from PyQt5.QtCore import pyqtSignal, QTimer, Qt, QObject, QSettings, \
+from PyQt5.QtCore import QTimer, Qt, QSettings, \
     QItemSelection, QCoreApplication, pyqtSlot, QPoint
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon, QCloseEvent
 from PyQt5.QtWidgets import QMainWindow, QWidget, QApplication, \
@@ -16,6 +15,7 @@ from PyQt5.QtWidgets import QMainWindow, QWidget, QApplication, \
 from asyncua.sync import ua
 from asyncua.sync import Node
 
+from uaclient.handler import DataChangeHandler, EventHandler
 from uaclient.uaclient import UaClient
 from uaclient.mainwindow_ui import Ui_MainWindow
 from uaclient.connection_dialog import ConnectionDialog
@@ -28,26 +28,6 @@ from uawidgets.call_method_dialog import CallMethodDialog
 
 
 logger = logging.getLogger(__name__)
-
-
-class DataChangeHandler(QObject):
-    data_change_fired = pyqtSignal(object, str, str)
-
-    def datachange_notification(self, node, val, data):
-        if data.monitored_item.Value.SourceTimestamp:
-            dato = data.monitored_item.Value.SourceTimestamp.isoformat()
-        elif data.monitored_item.Value.ServerTimestamp:
-            dato = data.monitored_item.Value.ServerTimestamp.isoformat()
-        else:
-            dato = datetime.now().isoformat()
-        self.data_change_fired.emit(node, str(val), dato)
-
-
-class EventHandler(QObject):
-    event_fired = pyqtSignal(object)
-
-    def event_notification(self, event):
-        self.event_fired.emit(event)
 
 
 class EventUI(object):
