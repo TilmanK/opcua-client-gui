@@ -249,7 +249,6 @@ class TreeViewModel(QStandardItemModel):
             return False
         node = self.itemFromIndex(parent).data(Qt.UserRole)
         if node not in self._fetched:
-            self._fetched.append(node)
             return True
         return False
 
@@ -266,6 +265,7 @@ class TreeViewModel(QStandardItemModel):
         """Fetch and publish the children for the given index."""
         parent = self.itemFromIndex(idx)
         node = parent.data(Qt.UserRole)
+        self._fetched.append(node)
         descriptions = node.get_children_descriptions()
         descriptions.sort(key=lambda x: x.BrowseName)
         for desc in descriptions:
