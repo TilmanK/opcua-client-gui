@@ -396,7 +396,7 @@ class MyDelegate(QStyledItemDelegate):
         dv = ua.DataValue(ua.Variant(data.value, varianttype=data.uatype))
         try:
             logger.info("Writing attribute %s of node %s with value: %s", data.attr, self.attrs_widget.current_node, dv)
-            self.attrs_widget.current_node.set_attribute(data.attr, dv)
+            self.attrs_widget.current_node.set_attribute_value(data.attr, dv)
         except Exception as ex:
             logger.exception("Exception while writing %s to %s", dv, data.attr)
             self.error.emit(ex)
