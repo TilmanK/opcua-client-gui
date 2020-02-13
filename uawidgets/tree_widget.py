@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, List, Iterable
+from typing import Optional, List, Iterable, Dict
 
 from PyQt5.QtCore import pyqtSignal, QMimeData, QObject, Qt, QSettings, \
     QModelIndex
