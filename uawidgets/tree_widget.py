@@ -241,6 +241,7 @@ class TreeViewModel(QStandardItemModel):
         """Reset the internal cache for the given node."""
         try:
             self._fetched.remove(node)
+            del self._descr_cache[node]
         except ValueError:
             pass
 
