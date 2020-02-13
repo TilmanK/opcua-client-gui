@@ -189,8 +189,8 @@ class TreeViewModel(QStandardItemModel):
         description.TypeDefinition = TwoByteNodeId(ObjectIds.FolderType)
         return description
 
-    def add_item_with_parent(self, desc: ReferenceDescription,
-                             parent: QStandardItem) -> None:
+    def _add_item_with_parent(self, desc: ReferenceDescription,
+                              parent: QStandardItem) -> None:
         """Add an item to the model with the given parent."""
         parent_node = parent.data(Qt.UserRole)
         node = parent_node.get_child(desc.BrowseName.to_string())
@@ -276,7 +276,7 @@ class TreeViewModel(QStandardItemModel):
         descriptions.sort(key=lambda x: x.BrowseName)
         self._descr_cache[node] = descriptions
         for desc in descriptions:
-            self.add_item_with_parent(desc, parent)
+            self._add_item_with_parent(desc, parent)
 
     def mimeData(self, indexes: Iterable[QModelIndex]) -> QMimeData:
         """Return a QMimeData object for the given indexes."""
