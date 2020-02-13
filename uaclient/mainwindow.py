@@ -380,7 +380,6 @@ class Window(QMainWindow):
             self.show_error(ex)
             raise
         finally:
-            self.save_current_node()
             self.tree_ui.clear()
             self._refs_ui.clear()
             self._attrs_ui.clear()
@@ -398,28 +397,6 @@ class Window(QMainWindow):
         self._settings.setValue("address_list", self._address_list)
         self.disconnect()
         super(Window, self).closeEvent(event)
-
-    def save_current_node(self) -> None:
-        """Save the current node to be restored after restart."""
-        current_node = self.tree_ui.get_current_node()
-        if current_node:
-            mysettings = self._settings.value("current_node", None)
-            if mysettings is None:
-                mysettings = {}
-            uri = self.ui.addrComboBox.currentText()
-            mysettings[uri] = current_node.nodeid.to_string()
-            self._settings.setValue("current_node", mysettings)
-
-    def load_current_node(self) -> None:
-        """Load the current node from the settings."""
-        mysettings = self._settings.value("current_node", None)
-        if mysettings is None:
-            return
-        uri = self.ui.addrComboBox.currentText()
-        if uri in mysettings:
-            nodeid = ua.NodeId.from_string(mysettings[uri])
-            node = self.uaclient.client.get_node(nodeid)
-            self.tree_ui.expand_to_node(node)
 
     def setup_context_menu_tree(self) -> None:
         """Setup the context menu for the TreeView."""
