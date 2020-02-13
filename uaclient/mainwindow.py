@@ -1,17 +1,17 @@
 #! /usr/bin/env python3
-
+import os
 import sys
 import traceback
 
 from datetime import datetime
-import inspect
-from enum import Enum
 import logging
+from typing import List, Optional
 
-from PyQt5.QtCore import pyqtSignal, QTimer, Qt, QObject, QSettings, QItemSelection, QMimeData, QCoreApplication
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
+from PyQt5.QtCore import pyqtSignal, QTimer, Qt, QObject, QSettings, \
+    QItemSelection, QCoreApplication, pyqtSlot, QPoint
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon, QCloseEvent
 from PyQt5.QtWidgets import QMainWindow, QWidget, QApplication, \
-    QAbstractItemView, QMenu, QAction, QMessageBox
+    QMenu, QMessageBox, QAction
 
 from asyncua.sync import ua
 from asyncua.sync import Node
@@ -21,11 +21,9 @@ from uaclient.mainwindow_ui import Ui_MainWindow
 from uaclient.connection_dialog import ConnectionDialog
 from uaclient.graphwidget import GraphUI
 
-from uawidgets import resources
 from uawidgets.attrs_widget import AttrsWidget
 from uawidgets.tree_widget import TreeWidget
 from uawidgets.refs_widget import RefsWidget
-from uawidgets.logger import QtHandler
 from uawidgets.call_method_dialog import CallMethodDialog
 
 
@@ -207,17 +205,18 @@ class DataChangeUI(object):
 
 
 class Window(QMainWindow):
+    """Main window for FreeOpcUa Client."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Create a new Window."""
         QMainWindow.__init__(self)
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.setWindowIcon(QIcon(":/network.svg"))
 
-        # fix stuff imposible to do in qtdesigner
+        # fix stuff impossible to do in Qt Desinger
         # remove dock titlebar for addressbar
-        w = QWidget()
-        self.ui.addrDockWidget.setTitleBarWidget(w)
+        self.ui.addrDockWidget.setTitleBarWidget(QWidget())
         # tabify some docks
         self.tabifyDockWidget(self.ui.evDockWidget, self.ui.subDockWidget)
         self.tabifyDockWidget(self.ui.subDockWidget, self.ui.refDockWidget)
@@ -229,118 +228,141 @@ class Window(QMainWindow):
         # setup QSettings for application and get a settings object
         QCoreApplication.setOrganizationName("FreeOpcUa")
         QCoreApplication.setApplicationName("OpcUaClient")
-        self.settings = QSettings()
+        self._settings = QSettings()
 
-        self._address_list = self.settings.value("address_list", ["opc.tcp://localhost:4840", "opc.tcp://localhost:53530/OPCUA/SimulationServer/"])
-        print("ADR", self._address_list)
-        self._address_list_max_count = int(self.settings.value("address_list_max_count", 10))
+        adr_default = ["opc.tcp://localhost:4840",
+                       "opc.tcp://localhost:53530/OPCUA/SimulationServer/"]
+        self._address_list: List[str] = self._settings.value("address_list",
+                                                             adr_default)
+        logging.debug("Address list: %s", self._address_list)
+        self._address_list_max_count: int = \
+            int(self._settings.value("address_list_max_count", 10))
 
         # init widgets
-        for addr in self._address_list:
-            self.ui.addrComboBox.insertItem(100, addr)
+        self.ui.addrComboBox.addItems(self._address_list)
 
-        self.uaclient = UaClient()
+        self.ua_client: UaClient = UaClient()
 
-        self.tree_ui = TreeWidget(self.ui.treeView)
+        self.tree_ui: TreeWidget = TreeWidget(self.ui.treeView)
         self.tree_ui.error.connect(self.show_error)
         self.setup_context_menu_tree()
-        self.ui.treeView.selectionModel().currentChanged.connect(self._update_actions_state)
+        self.ui.treeView.selectionModel().currentChanged.connect(
+            self.update_actions_state)
 
-        self.refs_ui = RefsWidget(self.ui.refView)
-        self.refs_ui.error.connect(self.show_error)
-        self.attrs_ui = AttrsWidget(self.ui.attrView)
-        self.attrs_ui.error.connect(self.show_error)
-        self.datachange_ui = DataChangeUI(self, self.uaclient)
-        self.event_ui = EventUI(self, self.uaclient)
-        self.graph_ui = GraphUI(self, self.uaclient)
+        self._refs_ui = RefsWidget(self.ui.refView)
+        self._refs_ui.error.connect(self.show_error)
+        self._attrs_ui = AttrsWidget(self.ui.attrView)
+        self._attrs_ui.error.connect(self.show_error)
+        self._datachange_ui = DataChangeUI(self, self.ua_client)
+        self._event_ui = EventUI(self, self.ua_client)
+        self._graph_ui = GraphUI(self, self.ua_client)
 
         self.ui.addrComboBox.currentTextChanged.connect(self._uri_changed)
-        self._uri_changed(self.ui.addrComboBox.currentText())  # force update for current value at startup
+        # force update for current value at startup
+        self._uri_changed(self.ui.addrComboBox.currentText())
 
-        self.ui.treeView.selectionModel().selectionChanged.connect(self.show_refs)
+        self.ui.treeView.selectionModel().selectionChanged.connect(
+            self.show_refs)
         self.ui.actionCopyPath.triggered.connect(self.tree_ui.copy_path)
         self.ui.actionCopyNodeId.triggered.connect(self.tree_ui.copy_nodeid)
         self.ui.actionCall.triggered.connect(self.call_method)
 
-        self.ui.treeView.selectionModel().selectionChanged.connect(self.show_attrs)
+        self.ui.treeView.selectionModel().selectionChanged.connect(
+            self.show_attrs)
         self.ui.attrRefreshButton.clicked.connect(self.show_attrs)
 
-        self.resize(int(self.settings.value("main_window_width", 800)), int(self.settings.value("main_window_height", 600)))
-        data = self.settings.value("main_window_state", None)
-        if data:
-            self.restoreState(data)
+        self._restore_states()
 
         self.ui.connectButton.clicked.connect(self.connect)
         self.ui.disconnectButton.clicked.connect(self.disconnect)
-        # self.ui.treeView.expanded.connect(self._fit)
 
         self.ui.actionConnect.triggered.connect(self.connect)
         self.ui.actionDisconnect.triggered.connect(self.disconnect)
 
-        self.ui.connectOptionButton.clicked.connect(self.show_connection_dialog)
+        self.ui.connectOptionButton.clicked.connect(
+            self.show_connection_dialog)
 
-    def _uri_changed(self, uri):
-        self.uaclient.load_security_settings(uri)
+    def _restore_states(self) -> None:
+        """Restore the ui state as saved in the settings."""
+        try:
+            self.restoreGeometry(self._settings.value("geometry", None))
+        except TypeError:
+            logging.debug("No geometry was stored - cannot restore")
+        try:
+            self.restoreState(self._settings.value("state", None))
+        except TypeError:
+            logging.debug("No state was stored - cannot restore")
 
-    def show_connection_dialog(self):
+    @pyqtSlot(str, name="_uri_changed")
+    def _uri_changed(self, uri: str) -> None:
+        self.ua_client.load_security_settings(uri)
+
+    @pyqtSlot(name="show_connection_dialog")
+    def show_connection_dialog(self) -> None:
+        """Show the connection dialog and set the results if confirmed."""
         dia = ConnectionDialog(self, self.ui.addrComboBox.currentText())
-        dia.security_mode = self.uaclient.security_mode
-        dia.security_policy = self.uaclient.security_policy
-        dia.certificate_path = self.uaclient.certificate_path
-        dia.private_key_path = self.uaclient.private_key_path
-        ret = dia.exec_()
-        if ret:
-            self.uaclient.security_mode = dia.security_mode
-            self.uaclient.security_policy = dia.security_policy
-            self.uaclient.certificate_path = dia.certificate_path
-            self.uaclient.private_key_path = dia.private_key_path
+        dia.security_mode = self.ua_client.security_mode
+        dia.security_policy = self.ua_client.security_policy
+        dia.certificate_path = self.ua_client.certificate_path
+        dia.private_key_path = self.ua_client.private_key_path
+        if dia.exec_():
+            self.ua_client.security_mode = dia.security_mode
+            self.ua_client.security_policy = dia.security_policy
+            self.ua_client.certificate_path = dia.certificate_path
+            self.ua_client.private_key_path = dia.private_key_path
 
-    def show_refs(self, selection):
-        if isinstance(selection, QItemSelection):
-            if not selection.indexes(): # no selection
-                return
+    @pyqtSlot(QItemSelection, QItemSelection, name="show_refs")
+    def show_refs(self, selection: QItemSelection, _: QItemSelection) -> None:
+        """Show the references for the current node."""
+        if not selection.indexes(): # no selection
+            return
 
         node = self.get_current_node()
         if node:
-            self.refs_ui.show_refs(node)
-    
+            self._refs_ui.show_refs(node)
+
+    # Todo: This slot is used in different ways, must be splitted.
     def show_attrs(self, selection):
+        """Show the attributes for the current node."""
         if isinstance(selection, QItemSelection):
-            if not selection.indexes(): # no selection
+            if not selection.indexes():  # no selection
                 return
 
         node = self.get_current_node()
         if node:
-            self.attrs_ui.show_attrs(node)
+            self._attrs_ui.show_attrs(node)
 
-    def show_error(self, msg):
-        logger.warning("showing error: %s")
-        self.ui.statusBar.show()
-        self.ui.statusBar.setStyleSheet("QStatusBar { background-color : red; color : black; }")
+    @pyqtSlot(Exception, name="show_error")
+    def show_error(self, msg: Exception) -> None:
+        """Show an error message in the status bar based on an Exception."""
+        logger.warning("showing error: %s", msg)
+        # Todo: The stylesheet is never changed so it can be set in Qt Designer
+        self.ui.statusBar.setStyleSheet(
+            "QStatusBar { background-color : red; color : black; }")
         self.ui.statusBar.showMessage(str(msg))
+        self.ui.statusBar.show()
         QTimer.singleShot(8000, self.ui.statusBar.hide)
 
-    def get_current_node(self, idx=None):
-        return self.tree_ui.get_current_node(idx)
+    def get_current_node(self) -> Optional[Node]:
+        """Return the Node currently shown in the TreeWidget"""
+        return self.tree_ui.get_current_node()
 
-    def get_uaclient(self):
-        return self.uaclient
-
-    def connect(self):
+    @pyqtSlot(name="connect")
+    def connect(self) -> None:
+        """Connect to the server uri entered in the addrComboBox."""
         uri = self.ui.addrComboBox.currentText()
         try:
-            self.uaclient.connect(uri)
+            self.ua_client.connect(uri)
         except Exception as ex:
             self.show_error(ex)
-            raise
 
         self._update_address_list(uri)
-        self.tree_ui.set_root_node(self.uaclient.client.nodes.root)
+        self.tree_ui.set_root_node(self.ua_client.client.nodes.root)
         self.ui.treeView.setFocus()
         # Todo: This doesn't work yet
         # self.load_current_node()
 
-    def _update_address_list(self, uri):
+    def _update_address_list(self, uri: str) -> None:
         if uri == self._address_list[0]:
             return
         if uri in self._address_list:
@@ -349,80 +371,92 @@ class Window(QMainWindow):
         if len(self._address_list) > self._address_list_max_count:
             self._address_list.pop(-1)
 
-    def disconnect(self):
+    @pyqtSlot(name="disconnect")
+    def disconnect(self) -> None:
+        """Disconnect from the server currently connected to."""
         try:
-            self.uaclient.disconnect()
+            self.ua_client.disconnect()
         except Exception as ex:
             self.show_error(ex)
             raise
         finally:
             self.save_current_node()
             self.tree_ui.clear()
-            self.refs_ui.clear()
-            self.attrs_ui.clear()
-            self.datachange_ui.clear()
-            self.event_ui.clear()
+            self._refs_ui.clear()
+            self._attrs_ui.clear()
+            self._datachange_ui.clear()
+            self._event_ui.clear()
 
-
-    def closeEvent(self, event):
+    @pyqtSlot(QCloseEvent, name="closeEvent")
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Handle a window close request."""
         self.tree_ui.save_state()
-        self.attrs_ui.save_state()
-        self.refs_ui.save_state()
-        self.settings.setValue("main_window_width", self.size().width())
-        self.settings.setValue("main_window_height", self.size().height())
-        self.settings.setValue("main_window_state", self.saveState())
-        self.settings.setValue("address_list", self._address_list)
+        self._attrs_ui.save_state()
+        self._refs_ui.save_state()
+        self._settings.setValue("geometry", self.saveGeometry())
+        self._settings.setValue("state", self.saveState())
+        self._settings.setValue("address_list", self._address_list)
         self.disconnect()
-        event.accept()
+        super(Window, self).closeEvent(event)
 
-    def save_current_node(self):
+    def save_current_node(self) -> None:
+        """Save the current node to be restored after restart."""
         current_node = self.tree_ui.get_current_node()
         if current_node:
-            mysettings = self.settings.value("current_node", None)
+            mysettings = self._settings.value("current_node", None)
             if mysettings is None:
                 mysettings = {}
             uri = self.ui.addrComboBox.currentText()
             mysettings[uri] = current_node.nodeid.to_string()
-            self.settings.setValue("current_node", mysettings)
+            self._settings.setValue("current_node", mysettings)
 
-    def load_current_node(self):
-        mysettings = self.settings.value("current_node", None)
+    def load_current_node(self) -> None:
+        """Load the current node from the settings."""
+        mysettings = self._settings.value("current_node", None)
         if mysettings is None:
             return
         uri = self.ui.addrComboBox.currentText()
         if uri in mysettings:
             nodeid = ua.NodeId.from_string(mysettings[uri])
-            node = self.uaclient.client.get_node(nodeid)
+            node = self.ua_client.client.get_node(nodeid)
             self.tree_ui.expand_to_node(node)
 
-    def setup_context_menu_tree(self):
+    def setup_context_menu_tree(self) -> None:
+        """Setup the context menu for the TreeView."""
         self.ui.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.ui.treeView.customContextMenuRequested.connect(self._show_context_menu_tree)
-        self._contextMenu = QMenu()
+        self.ui.treeView.customContextMenuRequested.connect(
+            self.show_context_menu_tree)
+        self._context_menu = QMenu()
         self.addAction(self.ui.actionCopyPath)
         self.addAction(self.ui.actionCopyNodeId)
-        self._contextMenu.addSeparator()
-        self._contextMenu.addAction(self.ui.actionCall)
-        self._contextMenu.addSeparator()
+        self._context_menu.addSeparator()
+        self._context_menu.addAction(self.ui.actionCall)
+        self._context_menu.addSeparator()
 
-    def addAction(self, action):
-        self._contextMenu.addAction(action)
+    def addAction(self, action: QAction) -> None:
+        """Add an action to the Window."""
+        self._context_menu.addAction(action)
 
-    def _update_actions_state(self, current, previous):
-        node = self.get_current_node(current)
-        self.ui.actionCall.setEnabled(False)
-        if node:
-            if node.get_node_class() == ua.NodeClass.Method:
-                self.ui.actionCall.setEnabled(True)
-
-    def _show_context_menu_tree(self, position):
-        node = self.tree_ui.get_current_node()
-        if node:
-            self._contextMenu.exec_(self.ui.treeView.viewport().mapToGlobal(position))
-
-    def call_method(self):
+    @pyqtSlot(name="update_actions_state")
+    def update_actions_state(self) -> None:
+        """Enable or Disable the actionCall based on the Node class."""
         node = self.get_current_node()
-        dia = CallMethodDialog(self, self.uaclient.client, node)
+        self.ui.actionCall.setEnabled(False)
+        if node and node.get_node_class() == ua.NodeClass.Method:
+            self.ui.actionCall.setEnabled(True)
+
+    @pyqtSlot(QPoint, name="show_context_menu_tree")
+    def show_context_menu_tree(self, position: QPoint) -> None:
+        """Show the context menu at the given position."""
+        if self.tree_ui.get_current_node():
+            self._context_menu.exec_(
+                self.ui.treeView.viewport().mapToGlobal(position))
+
+    @pyqtSlot(name="call_method")
+    def call_method(self) -> None:
+        """Show the CallMethodDialog."""
+        node = self.get_current_node()
+        dia = CallMethodDialog(self, self.ua_client.client, node)
         dia.show()
 
 
@@ -453,6 +487,7 @@ def setup_logging(file_name: str, level: int = logging.ERROR) -> None:
 
 
 def main() -> None:
+    """Main entry point for the app."""
     sys.excepthook = excepthook
     setup_logging("logfile.log", logging.DEBUG)
     app = QApplication(sys.argv)

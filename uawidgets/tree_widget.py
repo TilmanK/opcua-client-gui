@@ -1,3 +1,5 @@
+from typing import Optional
+
 from PyQt5.QtCore import pyqtSignal, QMimeData, QObject, Qt, QSettings
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIcon
 from PyQt5.QtWidgets import QApplication, QAbstractItemView, QAction
@@ -135,9 +137,8 @@ class TreeWidget(QObject):
         idx = self.view.currentIndex()
         self.model.removeRow(idx.row(), idx.parent())
 
-    def get_current_node(self, idx=None):
-        if idx is None:
-            idx = self.view.currentIndex()
+    def get_current_node(self) -> Optional[Node]:
+        idx = self.view.currentIndex()
         idx = idx.sibling(idx.row(), 0)
         it = self.model.itemFromIndex(idx)
         if not it:

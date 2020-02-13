@@ -32,18 +32,18 @@ class TestClient(unittest.TestCase):
         self.server.stop()
 
     def get_attr_value(self, text):
-        idxlist = self.client.attrs_ui.model.match(self.client.attrs_ui.model.index(0, 0), Qt.DisplayRole, text,  1, Qt.MatchExactly | Qt.MatchRecursive)
+        idxlist = self.client._attrs_ui.model.match(self.client._attrs_ui.model.index(0, 0), Qt.DisplayRole, text, 1, Qt.MatchExactly | Qt.MatchRecursive)
         idx = idxlist[0]
         idx = idx.sibling(idx.row(), 1)
-        item = self.client.attrs_ui.model.itemFromIndex(idx)
+        item = self.client._attrs_ui.model.itemFromIndex(idx)
         return item.data(Qt.UserRole).value
 
     def test_select_objects(self):
         objects = self.server.nodes.objects
         self.client.tree_ui.expand_to_node(objects)
         self.assertEqual(objects, self.client.tree_ui.get_current_node())
-        self.assertGreater(self.client.attrs_ui.model.rowCount(), 6)
-        self.assertGreater(self.client.refs_ui.model.rowCount(), 1)
+        self.assertGreater(self.client._attrs_ui.model.rowCount(), 6)
+        self.assertGreater(self.client._refs_ui.model.rowCount(), 1)
 
         data = self.get_attr_value("NodeId")
         self.assertEqual(data, objects.nodeid)
@@ -52,8 +52,8 @@ class TestClient(unittest.TestCase):
         server_node = self.server.nodes.server
         self.client.tree_ui.expand_to_node(server_node)
         self.assertEqual(server_node, self.client.tree_ui.get_current_node())
-        self.assertGreater(self.client.attrs_ui.model.rowCount(), 6)
-        self.assertGreater(self.client.refs_ui.model.rowCount(), 10)
+        self.assertGreater(self.client._attrs_ui.model.rowCount(), 6)
+        self.assertGreater(self.client._refs_ui.model.rowCount(), 10)
 
         data = self.get_attr_value("NodeId")
         self.assertEqual(data, server_node.nodeid)
