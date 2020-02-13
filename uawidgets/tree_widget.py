@@ -168,7 +168,7 @@ class TreeViewModel(QStandardItemModel):
         """Remove all items and reset the header."""
         self.removeRows(0, self.rowCount())
         self._fetched = []
-        self._descr_cache = {}
+        self._descr_cache.clear()
         self._root_node = None
 
     def set_root_node(self, node: Node) -> None:
