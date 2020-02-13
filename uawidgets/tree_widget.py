@@ -31,6 +31,7 @@ class TreeWidget(QObject):
         if state is not None:
             self.view.header().restoreState(state)
 
+        # Todo: I can't see where this is used, should be removed?
         self.actionReload = QAction("Reload", self)
         self.actionReload.triggered.connect(self.reload_current)
 
