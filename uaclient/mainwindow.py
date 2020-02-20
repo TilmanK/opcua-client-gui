@@ -20,8 +20,8 @@ from uaclient.uaclient import UaClient
 from uaclient.mainwindow_ui import Ui_MainWindow
 from uaclient.connection_dialog import ConnectionDialog
 from uaclient.graphwidget import GraphUI
+from uawidgets.attribute_widget import AttributeWidget
 
-from uawidgets.attrs_widget import AttrsWidget
 from uawidgets.tree_widget import TreeWidget
 from uawidgets.refs_widget import RefsWidget
 from uawidgets.call_method_dialog import CallMethodDialog
@@ -230,8 +230,7 @@ class Window(QMainWindow):
 
         self._refs_ui = RefsWidget(self.ui.refView)
         self._refs_ui.error.connect(self.show_error)
-        self._attrs_ui = AttrsWidget(self.ui.attrView)
-        self._attrs_ui.error.connect(self.show_error)
+        self._attrs_ui = AttributeWidget(self.ui.attrView)
         self._datachange_ui = DataChangeUI(self, self.uaclient)
         self._event_ui = EventUI(self, self.uaclient)
         self._graph_ui = GraphUI(self, self.uaclient)
@@ -247,8 +246,8 @@ class Window(QMainWindow):
         self.ui.actionCall.triggered.connect(self.call_method)
 
         self.ui.treeView.selectionModel().selectionChanged.connect(
-            self.show_attrs)
-        self.ui.attrRefreshButton.clicked.connect(self.show_attrs)
+            self.on_node_selection)
+        self.ui.attrRefreshButton.clicked.connect(self.show_attributes)
 
         self._restore_states()
 
@@ -300,16 +299,15 @@ class Window(QMainWindow):
         if node:
             self._refs_ui.show_refs(node)
 
-    # Todo: This slot is used in different ways, must be splitted.
-    def show_attrs(self, selection):
-        """Show the attributes for the current node."""
-        if isinstance(selection, QItemSelection):
-            if not selection.indexes():  # no selection
-                return
+    @pyqtSlot(QItemSelection, QItemSelection, name="on_node_selection")
+    def on_node_selection(self, _: QItemSelection, __: QItemSelection) -> None:
+        """Handle a change in the TreeView's selection."""
+        self.show_attributes()
 
-        node = self.get_current_node()
-        if node:
-            self._attrs_ui.show_attrs(node)
+    @pyqtSlot(name="show_attributes")
+    def show_attributes(self) -> None:
+        """Show the attributes for the current Node in the AttributeWidget."""
+        self._attrs_ui.show_attributes(self.get_current_node())
 
     @pyqtSlot(Exception, name="show_error")
     def show_error(self, msg: Exception) -> None:
