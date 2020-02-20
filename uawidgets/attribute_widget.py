@@ -2,9 +2,9 @@
 import logging
 from typing import Optional, Dict, List
 
-from PyQt5.QtCore import QObject, QSettings, QModelIndex, pyqtSlot, Qt
+from PyQt5.QtCore import QObject, QSettings, QModelIndex, pyqtSlot, Qt, QPoint
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtWidgets import QTreeView, QHeaderView
+from PyQt5.QtWidgets import QTreeView, QHeaderView, QMenu, QApplication
 from asyncua.common.ua_utils import val_to_string
 from asyncua.sync import Node
 from asyncua.ua import DataValue, AttributeIds, VariantType, Argument
@@ -33,8 +33,31 @@ class AttributeWidget(QObject):
         self._view.expanded.connect(self.item_expanded)
         self._view.collapsed.connect(self.item_collapsed)
 
+        self._view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._view.customContextMenuRequested.connect(self._show_context_menu)
+
         # Todo: Handle Edit
-        # Todo: Handle Context Menu
+
+    @pyqtSlot(QPoint, name="_show_context_menu")
+    def _show_context_menu(self, position: QPoint) -> None:
+        index = self._view.indexAt(position)
+        if not index.isValid():
+            logging.debug("Context menu requested for invalid position.")
+        item = self._model.itemFromIndex(index)
+        if item:
+            global_pos = self._view.viewport().mapToGlobal(position)
+            menu = QMenu()
+            copy_action = menu.addAction(self.tr("&Copy Value"))
+            copy_action.triggered.connect(self.copy_value)
+            menu.exec(global_pos)
+
+    @pyqtSlot(name="copy_value")
+    def copy_value(self) -> None:
+        """Copy the value of the currently selected row."""
+        idx = self._view.currentIndex()
+        idx = idx.siblingAtColumn(1)
+        item = self._model.itemFromIndex(idx)
+        QApplication.clipboard().setText(item.text())
 
     @pyqtSlot(QModelIndex, name="item_expanded")
     def item_expanded(self, index: QModelIndex) -> None:
