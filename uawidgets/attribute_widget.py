@@ -88,12 +88,14 @@ class AttributeWidget(QObject):
         """Return a row of QStandardItems representing an Attribute."""
         logging.debug("Generating row for attr %s and value %s", attr, value)
         name_item = QStandardItem(attr.name)
+        name_item.setEditable(False)
         if attr == AttributeIds.Value:
             for row in self._get_value_rows(attr, value):
                 name_item.appendRow(row)
         value_item = QStandardItem(val_to_string(value))
         value_item.setData(value.Value.Value, Qt.UserRole)
         type_item = QStandardItem(value.Value.VariantType.name)
+        type_item.setEditable(False)
         return [name_item, value_item, type_item]
 
     def _get_value_rows(self, attr: AttributeIds, value: DataValue)\
@@ -101,6 +103,7 @@ class AttributeWidget(QObject):
         """Return a list of rows of QStandardItems representing a Value."""
         rows = []
         name_item = QStandardItem(attr.name)
+        name_item.setEditable(False)
         if isinstance(value.Value.Value, list):
             for row in self._get_list_rows(value):
                 name_item.appendRow(row)
@@ -109,16 +112,25 @@ class AttributeWidget(QObject):
                 name_item.appendRow(row)
         value_item = QStandardItem(val_to_string(value))
         value_item.setData(value, Qt.UserRole)
-        rows.append([name_item,
-                     value_item,
-                     QStandardItem(value.Value.VariantType.name)])
-        d_str = VariantType.DateTime.name
-        rows.append([QStandardItem("Server Timestamp"),
-                     QStandardItem(str(value.ServerTimestamp)),
-                     QStandardItem(d_str)])
-        rows.append([QStandardItem("Source Timestamp"),
-                     QStandardItem(str(value.SourceTimestamp)),
-                     QStandardItem(d_str)])
+        type_item = QStandardItem(value.Value.VariantType.name)
+        type_item.setEditable(False)
+        rows.append([name_item, value_item, type_item])
+        return [*rows, *self._get_timestamp_rows(value)]
+
+    @staticmethod
+    def _get_timestamp_rows(value: DataValue)\
+            -> List[List[QStandardItem]]:
+        """Return the rows representing server and source timestamp."""
+        rows = []
+        for name, t_value in (("Server Timestamp", value.ServerTimestamp),
+                              ("Source Timestamp", value.SourceTimestamp)):
+            d_str = VariantType.DateTime.name
+            name_item = QStandardItem(name)
+            name_item.setEditable(False)
+            value_item = QStandardItem(str(t_value))
+            type_item = QStandardItem(d_str)
+            type_item.setEditable(False)
+            rows.append([name_item, value_item, type_item])
         return rows
 
     def _get_list_rows(self, value: DataValue)\
@@ -127,12 +139,14 @@ class AttributeWidget(QObject):
         rows = []
         for val in value.Value.Value:
             name_item = QStandardItem(str(value.Value.Value.index(val)))
+            name_item.setEditable(False)
             if value.Value.VariantType == VariantType.ExtensionObject:
                 for row in self._get_extension_rows(val):
                     name_item.appendRow(row)
             value_item = QStandardItem(str(val))
             value_item.setData(value.Value.Value, Qt.UserRole)
             type_item = QStandardItem(value.Value.VariantType.name)
+            type_item.setEditable(False)
             rows.append([name_item, value_item, type_item])
         return rows
 
@@ -142,10 +156,12 @@ class AttributeWidget(QObject):
         rows = []
         for arg_name, arg_type in value.ua_types:
             name_item = QStandardItem(arg_name)
+            name_item.setEditable(False)
             attr_val = getattr(value, arg_name)
             value_item = QStandardItem(val_to_string(attr_val))
             value_item.setData(attr_val, Qt.UserRole)
             type_item = QStandardItem(arg_type)
+            type_item.setEditable(False)
             rows.append([name_item, value_item, type_item])
         return rows
 
