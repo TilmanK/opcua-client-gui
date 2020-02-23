@@ -118,8 +118,7 @@ class AttributeWidget(QObject):
         return [*rows, *self._get_timestamp_rows(value)]
 
     @staticmethod
-    def _get_timestamp_rows(value: DataValue)\
-            -> List[List[QStandardItem]]:
+    def _get_timestamp_rows(value: DataValue) -> List[List[QStandardItem]]:
         """Return the rows representing server and source timestamp."""
         rows = []
         for name, t_value in (("Server Timestamp", value.ServerTimestamp),
